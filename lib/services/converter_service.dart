@@ -9,7 +9,7 @@ class ConverterService {
   final Dio _dio = Dio();
 
   static const String _vercelApiUrl =
-      'https://mufy-api-xyz.vercel.app/api/download';
+      'https://mufy-aydcc0tit-simrs-apotik.vercel.app/api/download';
 
   Future<String> downloadAndConvertToMp3({
     required String videoId,

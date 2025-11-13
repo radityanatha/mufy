@@ -1,164 +1,207 @@
 import 'package:dio/dio.dart';
 import '../services/storage_service.dart';
+import '../models/audio_quality.dart';
 import 'dart:developer' as developer;
+import 'dart:convert';
 
 class ConverterService {
   final StorageService _storageService = StorageService();
   final Dio _dio = Dio();
 
-  // Download dan convert YouTube ke MP3 menggunakan API pihak ketiga
-  // CATATAN: Untuk production, buat backend sendiri atau gunakan API yang legal
+  static const String _vercelApiUrl =
+      'https://mufy-api-xyz.vercel.app/api/download';
+
+  // Download audio menggunakan Vercel Serverless Function
+  // Vercel API akan download dan convert menggunakan @distube/ytdl-core
+  // Hasil dikembalikan sebagai base64, lalu di-decode dan disimpan ke device
   Future<String> downloadAndConvertToMp3({
     required String videoId,
     required String title,
     required String videoUrl,
+    AudioQuality quality = AudioQuality.medium,
     Function(double)? onProgress,
   }) async {
-    try {
-      // Menggunakan backend server sendiri (disarankan)
-      // Setup backend server dengan yt-dlp (lihat folder backend/)
-      //
-      // Untuk Android: Gunakan IP address komputer, bukan localhost
-      // Contoh: http://192.168.1.100:3000/api/download
-      //
-      // Untuk Desktop: Bisa menggunakan localhost
-      // Contoh: http://localhost:3000/api/download
+    // Check jika URL Vercel belum dikonfigurasi
+    if (_vercelApiUrl.contains('YOUR_VERCEL_API_URL_HERE')) {
+      throw Exception(
+        '❌ Vercel API URL belum dikonfigurasi!\n\n'
+        'Silakan update _vercelApiUrl di lib/services/converter_service.dart\n'
+        'dengan URL Vercel Anda setelah deploy.\n\n'
+        'Contoh: https://mufy-api.vercel.app/api/download',
+      );
+    }
 
-      // Konfigurasi URL backend
-      // Untuk development: http://localhost:3000/api/download
-      // Untuk production: Ganti dengan URL server production Anda
-      final backendUrl = 'http://192.168.50.218:3000/api/download';
+    int retryCount = 0;
+    const maxRetries = 3;
 
-      // Jika backend tidak tersedia, gunakan alternatif
-      // Anda bisa menggunakan service seperti:
-      // - Membuat backend sendiri dengan yt-dlp
-      // - Menggunakan API converter yang legal
-
+    while (retryCount < maxRetries) {
       try {
-        developer.log('Memulai download dari: $backendUrl');
+        developer.log(
+          'Memulai download melalui Vercel API (Attempt ${retryCount + 1}/$maxRetries)',
+        );
         developer.log('Video URL: $videoUrl');
         developer.log('Video ID: $videoId');
         developer.log('Title: $title');
+        developer.log('Quality: ${quality.label}');
 
-        final response = await _dio.get(
-          backendUrl,
-          queryParameters: {'url': videoUrl, 'format': 'mp3'},
-          options: Options(
-            responseType: ResponseType.bytes,
-            followRedirects: true,
-            receiveTimeout: const Duration(
-              minutes: 10,
-            ), // Timeout 10 menit untuk download besar
-            sendTimeout: const Duration(seconds: 30),
-          ),
-          onReceiveProgress: (received, total) {
-            if (total > 0 && onProgress != null) {
-              final progressPercent = received / total;
-              onProgress(progressPercent);
-              if (received % 100000 == 0 || received == total) {
-                // Log setiap 100KB atau saat selesai
-                developer.log(
-                  'Download progress: ${(progressPercent * 100).toStringAsFixed(1)}% '
-                  '(${_formatBytes(received)} / ${_formatBytes(total)})',
-                );
-              }
-            }
-          },
-        );
+        if (onProgress != null) {
+          onProgress(0.1); // 10% - Started
+        }
 
-        if (response.data == null || response.data.isEmpty) {
-          developer.log('Error: Response data kosong');
+        // Map quality ke format yang dimengerti Vercel API
+        String qualityParam;
+        switch (quality) {
+          case AudioQuality.low:
+            qualityParam = '96K';
+            break;
+          case AudioQuality.medium:
+            qualityParam = '192K';
+            break;
+          case AudioQuality.high:
+            qualityParam = '256K';
+            break;
+          case AudioQuality.best:
+            qualityParam = '320K';
+            break;
+        }
+
+        if (onProgress != null) {
+          onProgress(0.2); // 20% - Processing di server
+        }
+
+        developer.log('Memanggil Vercel API: $_vercelApiUrl');
+
+        // Panggil Vercel API
+        final response = await _dio
+            .post(
+              _vercelApiUrl,
+              data: {'videoUrl': videoUrl, 'quality': qualityParam},
+              options: Options(
+                responseType: ResponseType.json,
+                receiveTimeout: const Duration(seconds: 60),
+                sendTimeout: const Duration(seconds: 60),
+                headers: {'Content-Type': 'application/json'},
+              ),
+            )
+            .timeout(
+              const Duration(seconds: 60),
+              onTimeout: () {
+                throw Exception('Timeout saat memanggil Vercel API');
+              },
+            );
+
+        if (response.statusCode != 200 || response.data == null) {
           throw Exception(
-            'File yang diterima kosong. Pastikan backend server berfungsi dengan baik.',
+            'Vercel API mengembalikan error: ${response.statusCode}\n'
+            'Response: ${response.data}',
+          );
+        }
+
+        final data = response.data;
+        if (data['success'] != true || data['audio'] == null) {
+          throw Exception(
+            'Vercel API tidak mengembalikan audio: ${data['error'] ?? 'Unknown error'}',
           );
         }
 
         developer.log(
-          'Download selesai, ukuran file: ${_formatBytes(response.data.length)}',
+          'Audio diterima dari Vercel, ukuran: ${data['size'] ?? 'unknown'} bytes',
         );
+
+        if (onProgress != null) {
+          onProgress(0.7); // 70% - Audio received
+        }
+
+        // Decode base64 audio
+        final audioBytes = base64Decode(data['audio'] as String);
+
+        if (audioBytes.isEmpty) {
+          throw Exception('Audio yang diterima kosong');
+        }
+
+        developer.log(
+          'Audio decoded, ukuran: ${_formatBytes(audioBytes.length)}',
+        );
+
+        if (onProgress != null) {
+          onProgress(0.9); // 90% - Decode selesai
+        }
 
         // Simpan file ke local storage
-        final fileName = '${_sanitizeFileName(title)}_$videoId.mp3';
-        developer.log('Menyimpan file: $fileName');
+        final extension = data['format'] ?? 'm4a';
+        final localFileName = '${_sanitizeFileName(title)}_$videoId.$extension';
 
-        final filePath = await _storageService.saveMp3File(
-          fileName,
-          response.data,
+        developer.log('Menyimpan file ke local storage: $localFileName');
+
+        final filePath = await _storageService.saveAudioFile(
+          localFileName,
+          audioBytes,
         );
+
+        if (onProgress != null) {
+          onProgress(1.0); // 100% - Selesai
+        }
 
         developer.log('File berhasil disimpan di: $filePath');
         return filePath;
-      } on DioException catch (e) {
-        // Handle error spesifik dari Dio
-        String errorMessage = 'Gagal mengunduh file';
-
-        developer.log('DioException terjadi: ${e.type}');
-        developer.log('Error message: ${e.message}');
-        developer.log('Error response: ${e.response?.data}');
-        developer.log('Error status code: ${e.response?.statusCode}');
-
-        if (e.type == DioExceptionType.connectionTimeout ||
-            e.type == DioExceptionType.receiveTimeout) {
-          errorMessage =
-              '⏱️ Timeout: Koneksi ke server terlalu lama.\n\n'
-              'Kemungkinan penyebab:\n'
-              '• Video terlalu panjang\n'
-              '• Koneksi internet lambat\n'
-              '• Backend server tidak merespons\n\n'
-              'Pastikan backend server berjalan di: $backendUrl';
-        } else if (e.type == DioExceptionType.connectionError) {
-          errorMessage =
-              '🔌 Tidak dapat terhubung ke server.\n\n'
-              'Pastikan:\n'
-              '• Backend server sudah berjalan\n'
-              '• URL backend benar: $backendUrl\n'
-              '• Untuk Android emulator, gunakan IP komputer (bukan localhost)\n'
-              '• Firewall tidak memblokir koneksi';
-        } else if (e.response != null) {
-          // Server mengembalikan error response
-          final statusCode = e.response!.statusCode;
-          final errorData = e.response!.data;
-
-          String errorDetail = '';
-          if (errorData is Map) {
-            errorDetail =
-                errorData['error']?.toString() ??
-                errorData['details']?.toString() ??
-                errorData.toString();
-          } else if (errorData is String) {
-            errorDetail = errorData;
-          } else {
-            errorDetail = errorData.toString();
-          }
-
-          errorMessage =
-              '❌ Server error ($statusCode)\n\n'
-              'Detail error:\n$errorDetail\n\n'
-              'Pastikan:\n'
-              '• Backend server berjalan dengan baik\n'
-              '• yt-dlp terinstall dan berfungsi\n'
-              '• Video URL valid dan dapat diakses';
-        } else {
-          errorMessage =
-              '❌ Error: ${e.message ?? e.toString()}\n\n'
-              'Pastikan backend server berjalan di: $backendUrl';
-        }
-
-        throw Exception(errorMessage);
       } catch (e, stackTrace) {
-        developer.log('Error umum: $e');
+        developer.log('Error: $e');
         developer.log('Stack trace: $stackTrace');
 
-        // Cek apakah ini error dari Dio yang tidak tertangkap
-        if (e.toString().contains('SocketException') ||
-            e.toString().contains('Failed host lookup')) {
+        // Handle specific error dari Vercel API
+        if (e is DioException) {
+          final statusCode = e.response?.statusCode;
+          final errorData = e.response?.data;
+
+          if (statusCode == 400 || statusCode == 404) {
+            // Video tidak tersedia atau URL invalid
+            throw Exception(
+              'Video tidak tersedia atau diblokir.\n\n'
+              'Kemungkinan penyebab:\n'
+              '• Video dihapus atau tidak tersedia\n'
+              '• Video bersifat private\n'
+              '• Video diblokir di wilayah Anda\n'
+              '• URL video tidak valid\n\n'
+              'Error: ${errorData?['error'] ?? e.message}',
+            );
+          }
+
+          if (statusCode == 500) {
+            // Server error, coba retry
+            retryCount++;
+            if (retryCount < maxRetries) {
+              developer.log(
+                'Server error, retry attempt $retryCount/$maxRetries: $e',
+              );
+              await Future.delayed(Duration(seconds: 2 * retryCount));
+              continue;
+            }
+          }
+        }
+
+        // Retry logic untuk connection errors
+        if ((e.toString().contains('Timeout') ||
+                e.toString().contains('Connection') ||
+                e.toString().contains('SocketException') ||
+                e.toString().contains('Network')) &&
+            retryCount < maxRetries) {
+          retryCount++;
+          developer.log(
+            'Connection error, retry attempt $retryCount/$maxRetries: $e',
+          );
+          await Future.delayed(Duration(seconds: 2 * retryCount));
+          continue;
+        }
+
+        // Jika semua retry gagal atau error tidak bisa di-retry
+        if (retryCount >= maxRetries) {
           throw Exception(
-            '🔌 Tidak dapat terhubung ke server.\n\n'
+            '❌ Gagal mengunduh setelah $maxRetries percobaan.\n\n'
+            'Error: $e\n\n'
             'Pastikan:\n'
-            '• Backend server sudah berjalan di $backendUrl\n'
-            '• Untuk Android emulator, gunakan IP komputer (bukan localhost)\n'
-            '• Koneksi internet stabil\n\n'
-            'Error detail: $e',
+            '• Vercel API sudah di-deploy\n'
+            '• URL API sudah benar di converter_service.dart\n'
+            '• Koneksi internet stabil',
           );
         }
 
@@ -166,14 +209,23 @@ class ConverterService {
           '❌ Terjadi error saat mengunduh file.\n\n'
           'Error: $e\n\n'
           'Pastikan:\n'
-          '• Backend server berjalan dengan baik\n'
-          '• yt-dlp terinstall dan berfungsi\n'
+          '• Vercel API sudah di-deploy\n'
+          '• URL API sudah benar\n'
+          '• Koneksi internet stabil\n'
           '• Video URL valid',
         );
       }
-    } catch (e) {
-      rethrow;
     }
+
+    // Jika semua retry gagal
+    throw Exception(
+      'Gagal mengunduh setelah $maxRetries percobaan.\n\n'
+      'Silakan coba lagi nanti atau pastikan Vercel API sudah di-deploy.',
+    );
+  }
+
+  void dispose() {
+    // No cleanup needed for Vercel API
   }
 
   String _sanitizeFileName(String fileName) {

@@ -161,7 +161,7 @@ class HomeScreen extends StatelessWidget {
                     
                     // Title
                     Text(
-                      'YouTube to MP3',
+                      'YouTube Audio Downloader',
                       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -169,7 +169,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Convert video YouTube menjadi file MP3',
+                      'Download audio dari video YouTube (M4A/WebM)',
                       style: Theme.of(context).textTheme.bodyMedium,
                       textAlign: TextAlign.center,
                     ),

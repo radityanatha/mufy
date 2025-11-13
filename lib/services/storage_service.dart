@@ -200,8 +200,8 @@ class StorageService {
     }
   }
 
-  // Simpan file MP3
-  Future<String> saveMp3File(String fileName, List<int> bytes) async {
+  // Simpan file audio (MP3, M4A, WEBM, dll)
+  Future<String> saveAudioFile(String fileName, List<int> bytes) async {
     final musicDir = await getMusicDirectory();
     final file = File('${musicDir.path}/$fileName');
     await file.writeAsBytes(bytes);
@@ -235,6 +235,12 @@ class StorageService {
     return file.path;
   }
 
+  // Simpan file MP3 (backward compatibility - akan menggunakan saveAudioFile)
+  @Deprecated('Gunakan saveAudioFile untuk format audio yang lebih umum')
+  Future<String> saveMp3File(String fileName, List<int> bytes) async {
+    return saveAudioFile(fileName, bytes);
+  }
+
   String _formatBytes(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
@@ -244,8 +250,8 @@ class StorageService {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
-  // Hapus file MP3
-  Future<bool> deleteMp3File(String filePath) async {
+  // Hapus file audio (MP3, M4A, WEBM, dll)
+  Future<bool> deleteAudioFile(String filePath) async {
     try {
       final file = File(filePath);
       if (await file.exists()) {
@@ -256,6 +262,12 @@ class StorageService {
     } catch (e) {
       return false;
     }
+  }
+
+  // Hapus file MP3 (backward compatibility - akan menggunakan deleteAudioFile)
+  @Deprecated('Gunakan deleteAudioFile untuk format audio yang lebih umum')
+  Future<bool> deleteMp3File(String filePath) async {
+    return deleteAudioFile(filePath);
   }
 
   // Simpan daftar lagu ke SharedPreferences

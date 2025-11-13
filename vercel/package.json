@@ -1,0 +1,20 @@
+{
+  "name": "mufy-vercel-api",
+  "version": "1.0.0",
+  "description": "Vercel API untuk Mufy YouTube Downloader",
+  "main": "api/download.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@distube/ytdl-core": "^4.14.4"
+  },
+  "devDependencies": {
+    "vercel": "^32.0.0"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
+

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/video_info.dart';
 import '../models/downloaded_song.dart';
+import '../models/audio_quality.dart';
 import '../services/youtube_service.dart';
 import '../services/converter_service.dart';
 import '../services/storage_service.dart';
@@ -16,12 +17,19 @@ class ConverterProvider with ChangeNotifier {
   String? _error;
   double _downloadProgress = 0.0;
   List<DownloadedSong> _downloadedSongs = [];
+  AudioQuality _selectedQuality = AudioQuality.medium;
 
   VideoInfo? get videoInfo => _videoInfo;
   bool get isLoading => _isLoading;
   String? get error => _error;
   double get downloadProgress => _downloadProgress;
   List<DownloadedSong> get downloadedSongs => _downloadedSongs;
+  AudioQuality get selectedQuality => _selectedQuality;
+
+  void setQuality(AudioQuality quality) {
+    _selectedQuality = quality;
+    notifyListeners();
+  }
 
   ConverterProvider() {
     _loadDownloadedSongs();
@@ -65,8 +73,11 @@ class ConverterProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> convertToMp3() async {
+  Future<void> convertToMp3({AudioQuality? quality}) async {
     if (_videoInfo == null) return;
+
+    // Use provided quality or default to selected quality
+    final audioQuality = quality ?? _selectedQuality;
 
     _isLoading = true;
     _error = null;
@@ -132,23 +143,25 @@ class ConverterProvider with ChangeNotifier {
       _downloadProgress = 0.1;
       notifyListeners();
 
-      developer.log('Memulai konversi ke MP3');
+      developer.log('Memulai download audio dari YouTube');
       developer.log('Video ID: ${_videoInfo!.id}');
       developer.log('Title: ${_videoInfo!.title}');
+      developer.log('Quality: ${audioQuality.label}');
 
-      // Download dan convert
+      // Download audio langsung dari YouTube (tanpa backend server)
       final videoUrl = 'https://youtube.com/watch?v=${_videoInfo!.id}';
       final filePath = await _converterService.downloadAndConvertToMp3(
         videoId: _videoInfo!.id,
         title: _videoInfo!.title,
         videoUrl: videoUrl,
+        quality: audioQuality,
         onProgress: (progress) {
           _downloadProgress = 0.1 + (progress * 0.8);
           notifyListeners();
         },
       );
 
-      developer.log('Konversi berhasil, file path: $filePath');
+      developer.log('Download berhasil, file path: $filePath');
 
       _downloadProgress = 0.9;
       notifyListeners();
@@ -168,7 +181,7 @@ class ConverterProvider with ChangeNotifier {
       _downloadProgress = 1.0;
       _error = null;
       _isLoading = false;
-      developer.log('Download dan konversi selesai dengan sukses');
+      developer.log('Download audio selesai dengan sukses');
       notifyListeners();
     } catch (e, stackTrace) {
       developer.log('Error di convertToMp3: $e');
@@ -195,7 +208,7 @@ class ConverterProvider with ChangeNotifier {
     try {
       final song = _downloadedSongs.where((s) => s.id == id).firstOrNull;
       if (song != null) {
-        await _storageService.deleteMp3File(song.filePath);
+        await _storageService.deleteAudioFile(song.filePath);
         await _storageService.removeDownloadedSong(id);
         await _loadDownloadedSongs();
       }
@@ -215,6 +228,7 @@ class ConverterProvider with ChangeNotifier {
   @override
   void dispose() {
     _youtubeService.dispose();
+    _converterService.dispose();
     super.dispose();
   }
 }

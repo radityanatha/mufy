@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/video_info.dart';
+import '../models/audio_quality.dart';
 import '../providers/converter_provider.dart';
 import '../utils/responsive.dart';
+import 'quality_selection_dialog.dart';
 
 class VideoInfoCard extends StatelessWidget {
   final VideoInfo videoInfo;
@@ -129,12 +131,23 @@ class VideoInfoCard extends StatelessWidget {
                   child: ElevatedButton.icon(
                     onPressed: provider.isLoading
                         ? null
-                        : () {
-                            provider.convertToMp3();
+                        : () async {
+                            // Show quality selection dialog
+                            final selectedQuality = await showDialog<AudioQuality>(
+                              context: context,
+                              builder: (context) => QualitySelectionDialog(
+                                selectedQuality: provider.selectedQuality,
+                              ),
+                            );
+
+                            if (selectedQuality != null) {
+                              provider.setQuality(selectedQuality);
+                              provider.convertToMp3(quality: selectedQuality);
+                            }
                           },
                     icon: const Icon(Icons.download),
                     label: Text(
-                      provider.isLoading ? 'Mengkonversi...' : 'Download MP3',
+                      provider.isLoading ? 'Mengunduh...' : 'Download Audio',
                     ),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),

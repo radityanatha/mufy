@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/converter_provider.dart';
 import '../widgets/url_input_widget.dart';
 import '../widgets/video_info_card.dart';
-import '../widgets/downloaded_songs_list.dart';
+import '../widgets/my_music_screen.dart';
 import '../utils/responsive.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -27,27 +27,71 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildDesktopLayout(BuildContext context, double padding) {
-    return Row(
-      children: [
-        // Left side: Converter
-        Expanded(
-          flex: 2,
-          child: Container(
-            padding: EdgeInsets.all(padding),
-            child: _buildConverterSection(context),
-          ),
-        ),
-        // Divider
-        const VerticalDivider(width: 1),
-        // Right side: Downloaded Songs
-        Expanded(
-          flex: 1,
-          child: Container(
-            padding: EdgeInsets.all(padding),
-            child: const DownloadedSongsList(),
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+        final screenHeight = MediaQuery.of(context).size.height;
+        final screenWidth = MediaQuery.of(context).size.width;
+        
+        // Untuk landscape, gunakan Row, untuk portrait gunakan Column
+        if (isLandscape || screenWidth > screenHeight) {
+          return Row(
+            children: [
+              // Left side: Converter
+              Expanded(
+                flex: 2,
+                child: Container(
+                  padding: EdgeInsets.all(padding),
+                  child: SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - (padding * 2),
+                      ),
+                      child: _buildConverterSection(context),
+                    ),
+                  ),
+                ),
+              ),
+              // Divider
+              const VerticalDivider(width: 1),
+              // Right side: My Music
+              Expanded(
+                flex: 1,
+                child: Container(
+                  padding: EdgeInsets.all(padding),
+                  child: const MyMusicScreen(),
+                ),
+              ),
+            ],
+          );
+        } else {
+          // Portrait mode untuk desktop (jarang, tapi tetap support)
+          return Column(
+            children: [
+              // Top: Converter
+              Expanded(
+                flex: 2,
+                child: Container(
+                  padding: EdgeInsets.all(padding),
+                  child: SingleChildScrollView(
+                    child: _buildConverterSection(context),
+                  ),
+                ),
+              ),
+              // Divider
+              const Divider(height: 1),
+              // Bottom: My Music
+              Expanded(
+                flex: 1,
+                child: Container(
+                  padding: EdgeInsets.all(padding),
+                  child: const MyMusicScreen(),
+                ),
+              ),
+            ],
+          );
+        }
+      },
     );
   }
 
@@ -70,8 +114,8 @@ class HomeScreen extends StatelessWidget {
                   padding: EdgeInsets.all(padding),
                   child: _buildConverterSection(context),
                 ),
-                // Downloaded Songs Tab
-                const DownloadedSongsList(),
+                // My Music Tab
+                const MyMusicScreen(),
               ],
             ),
           ),
@@ -81,117 +125,149 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildConverterSection(BuildContext context) {
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 800),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Icon
-            Icon(
-              Icons.music_note,
-              size: Responsive.isDesktop(context) ? 96 : 64,
-              color: Theme.of(context).colorScheme.primary,
+    final isDesktop = Responsive.isDesktop(context);
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    
+    // Adjust icon size based on screen size
+    final iconSize = isDesktop 
+        ? (isLandscape ? 80.0 : 96.0).clamp(64.0, 96.0)
+        : 64.0;
+    
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Center(
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: isDesktop ? 800 : double.infinity,
+              maxHeight: constraints.maxHeight,
             ),
-            const SizedBox(height: 24),
-            
-            // Title
-            Text(
-              'YouTube to MP3',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Convert video YouTube menjadi file MP3',
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            
-            // URL Input
-            const UrlInputWidget(),
-            const SizedBox(height: 24),
-            
-            // Error Message (ditampilkan jika ada error)
-            Consumer<ConverterProvider>(
-              builder: (context, provider, child) {
-                if (provider.error != null && provider.videoInfo == null) {
-                  return Card(
-                    color: Colors.red.shade50,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          const Icon(Icons.error_outline, color: Colors.red),
-                          const SizedBox(height: 8),
-                          Text(
-                            provider.error!,
-                            style: const TextStyle(color: Colors.red),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isDesktop ? 0 : 16,
+                  vertical: isDesktop ? 0 : 16,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Icon
+                    Icon(
+                      Icons.music_note,
+                      size: iconSize,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-            
-            // Loading indicator saat fetch video info
-            Consumer<ConverterProvider>(
-              builder: (context, provider, child) {
-                if (provider.isLoading && provider.videoInfo == null) {
-                  return const Padding(
-                    padding: EdgeInsets.all(24.0),
-                    child: CircularProgressIndicator(),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-            
-            // Video Info Card
-            Consumer<ConverterProvider>(
-              builder: (context, provider, child) {
-                if (provider.videoInfo != null) {
-                  return Column(
-                    children: [
-                      // Error message saat download (jika ada)
-                      if (provider.error != null && provider.videoInfo != null)
-                        Card(
-                          color: Colors.red.shade50,
-                          margin: const EdgeInsets.only(bottom: 16),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.error_outline, color: Colors.red),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
+                    SizedBox(height: isDesktop ? 24 : 16),
+                    
+                    // Title
+                    Text(
+                      'YouTube to MP3',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Convert video YouTube menjadi file MP3',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: isDesktop ? 32 : 24),
+                    
+                    // URL Input
+                    const UrlInputWidget(),
+                    const SizedBox(height: 24),
+                    
+                    // Error Message (ditampilkan jika ada error)
+                    Consumer<ConverterProvider>(
+                      builder: (context, provider, child) {
+                        if (provider.error != null && provider.videoInfo == null) {
+                          return Card(
+                            color: Colors.red.shade50,
+                            margin: const EdgeInsets.only(bottom: 16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.error_outline, color: Colors.red),
+                                  const SizedBox(height: 8),
+                                  Text(
                                     provider.error!,
                                     style: const TextStyle(color: Colors.red),
                                     textAlign: TextAlign.center,
+                                    maxLines: 5,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                    
+                    // Loading indicator saat fetch video info
+                    Consumer<ConverterProvider>(
+                      builder: (context, provider, child) {
+                        if (provider.isLoading && provider.videoInfo == null) {
+                          return const Padding(
+                            padding: EdgeInsets.all(24.0),
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                    
+                    // Video Info Card
+                    Consumer<ConverterProvider>(
+                      builder: (context, provider, child) {
+                        if (provider.videoInfo != null) {
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Error message saat download (jika ada)
+                              if (provider.error != null && provider.videoInfo != null)
+                                Card(
+                                  color: Colors.red.shade50,
+                                  margin: const EdgeInsets.only(bottom: 16),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.error_outline, color: Colors.red),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            provider.error!,
+                                            style: const TextStyle(color: Colors.red),
+                                            textAlign: TextAlign.center,
+                                            maxLines: 3,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      VideoInfoCard(videoInfo: provider.videoInfo!),
-                    ],
-                  );
-                }
-                
-                return const SizedBox.shrink();
-              },
+                              VideoInfoCard(videoInfo: provider.videoInfo!),
+                            ],
+                          );
+                        }
+                        
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

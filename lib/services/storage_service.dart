@@ -6,9 +6,11 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/services.dart';
 import 'dart:developer' as developer;
 import '../models/downloaded_song.dart';
+import '../models/playlist.dart';
 
 class StorageService {
   static const String _songsKey = 'downloaded_songs';
+  static const String _playlistsKey = 'playlists';
 
   // Request permission untuk akses storage
   Future<bool> requestStoragePermission() async {
@@ -290,5 +292,47 @@ class StorageService {
   Future<bool> fileExists(String filePath) async {
     final file = File(filePath);
     return await file.exists();
+  }
+
+  // ========== PLAYLIST METHODS ==========
+
+  // Simpan daftar playlist ke SharedPreferences
+  Future<void> savePlaylists(List<Playlist> playlists) async {
+    final prefs = await SharedPreferences.getInstance();
+    final playlistsJson = playlists.map((p) => jsonEncode(p.toJson())).toList();
+    await prefs.setStringList(_playlistsKey, playlistsJson);
+  }
+
+  // Ambil daftar playlist dari SharedPreferences
+  Future<List<Playlist>> getPlaylists() async {
+    final prefs = await SharedPreferences.getInstance();
+    final playlistsJson = prefs.getStringList(_playlistsKey) ?? [];
+    return playlistsJson
+        .map((json) => Playlist.fromJson(jsonDecode(json)))
+        .toList();
+  }
+
+  // Tambah playlist baru
+  Future<void> addPlaylist(Playlist playlist) async {
+    final playlists = await getPlaylists();
+    playlists.add(playlist);
+    await savePlaylists(playlists);
+  }
+
+  // Update playlist
+  Future<void> updatePlaylist(Playlist playlist) async {
+    final playlists = await getPlaylists();
+    final index = playlists.indexWhere((p) => p.id == playlist.id);
+    if (index != -1) {
+      playlists[index] = playlist;
+      await savePlaylists(playlists);
+    }
+  }
+
+  // Hapus playlist
+  Future<void> deletePlaylist(String playlistId) async {
+    final playlists = await getPlaylists();
+    playlists.removeWhere((p) => p.id == playlistId);
+    await savePlaylists(playlists);
   }
 }

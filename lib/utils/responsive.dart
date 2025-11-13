@@ -15,13 +15,29 @@ class Responsive {
     return Platform.isAndroid;
   }
 
+  static bool isLandscape(BuildContext context) {
+    return MediaQuery.of(context).orientation == Orientation.landscape;
+  }
+
+  static bool isPortrait(BuildContext context) {
+    return MediaQuery.of(context).orientation == Orientation.portrait;
+  }
+
   static double getMaxWidth(BuildContext context) {
-    if (isDesktop(context)) return 1200;
+    if (isDesktop(context)) {
+      final screenWidth = MediaQuery.of(context).size.width;
+      return isLandscape(context) ? screenWidth * 0.8 : 1200;
+    }
     return double.infinity;
   }
 
   static double getPadding(BuildContext context) {
-    if (isDesktop(context)) return 32;
+    if (isDesktop(context)) {
+      final screenWidth = MediaQuery.of(context).size.width;
+      return isLandscape(context) 
+          ? screenWidth * 0.02 
+          : 32;
+    }
     return 16;
   }
 }

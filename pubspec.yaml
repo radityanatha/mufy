@@ -53,6 +53,9 @@ dependencies:
   
   # Shared preferences
   shared_preferences: ^2.2.2
+  
+  # Media scanner untuk Android (scan file ke MediaStore)
+  media_scanner: ^2.2.0
 
 dev_dependencies:
   flutter_test:

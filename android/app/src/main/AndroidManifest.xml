@@ -2,10 +2,21 @@
     <!-- Permissions untuk aplikasi -->
     <uses-permission android:name="android.permission.INTERNET" />
     
+    <!-- Permission untuk akses storage -->
+    <!-- Android 10-12 (API 29-32): Storage permission -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
+        android:maxSdkVersion="32" />
+    
+    <!-- Android 13+ (API 33+): Audio permission -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    
     <application
         android:label="mufy"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:requestLegacyExternalStorage="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

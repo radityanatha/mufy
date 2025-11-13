@@ -40,56 +40,195 @@ app.get('/api/download', (req, res) => {
     return res.status(400).json({ error: 'URL is required' });
   }
 
+  // Set timeout untuk response (15 menit untuk video panjang)
+  req.setTimeout(15 * 60 * 1000);
+  res.setTimeout(15 * 60 * 1000);
+
   try {
     // Generate unique filename
     const timestamp = Date.now();
     const outputPath = path.join(tempDir, `audio_${timestamp}.${format}`);
     const tempOutputPath = path.join(tempDir, `audio_${timestamp}.%(ext)s`);
 
-    console.log(`Downloading and converting: ${url}`);
+    console.log(`[${new Date().toISOString()}] Downloading and converting: ${url}`);
+    console.log(`[${new Date().toISOString()}] Output path: ${tempOutputPath}`);
 
-    // Download dan convert menggunakan yt-dlp
+    // Download dan convert menggunakan yt-dlp dengan timeout
+    // Timeout 10 menit untuk proses download dan convert
     const command = `yt-dlp -x --audio-format ${format} --audio-quality 192K -o "${tempOutputPath}" "${url}"`;
+    
+    // Flag untuk cek apakah response sudah dikirim
+    let responseSent = false;
 
-    exec(command, (error, stdout, stderr) => {
+    // Timeout untuk proses yt-dlp (10 menit)
+    const processTimeout = setTimeout(() => {
+      if (!responseSent) {
+        responseSent = true;
+        console.error(`[${new Date().toISOString()}] Timeout: Process took too long`);
+        return res.status(500).json({ 
+          error: 'Conversion timeout', 
+          details: 'Process took longer than 10 minutes. Video might be too long or connection is slow.' 
+        });
+      }
+    }, 10 * 60 * 1000); // 10 menit
+
+    const childProcess = exec(command, { 
+      maxBuffer: 10 * 1024 * 1024, // 10MB buffer untuk stdout/stderr
+      timeout: 10 * 60 * 1000 // 10 menit timeout
+    }, (error, stdout, stderr) => {
+      clearTimeout(processTimeout);
+
+      if (responseSent) {
+        return; // Response sudah dikirim, jangan kirim lagi
+      }
+
       if (error) {
-        console.error(`Error: ${error.message}`);
+        responseSent = true;
+        console.error(`[${new Date().toISOString()}] Error: ${error.message}`);
+        console.error(`[${new Date().toISOString()}] stderr: ${stderr}`);
+        
+        // Cek apakah ini error karena timeout
+        if (error.signal === 'SIGTERM' || error.killed) {
+          return res.status(500).json({ 
+            error: 'Conversion timeout', 
+            details: 'yt-dlp process was terminated due to timeout. Video might be too long.' 
+          });
+        }
+        
         return res.status(500).json({ 
           error: 'Conversion failed', 
-          details: error.message 
+          details: error.message,
+          stderr: stderr ? stderr.substring(0, 500) : undefined // Limit stderr length
         });
       }
 
-      // Cari file yang sudah di-generate
-      const files = fs.readdirSync(tempDir);
-      const generatedFile = files.find(file => file.startsWith(`audio_${timestamp}`));
-
-      if (!generatedFile) {
-        return res.status(500).json({ error: 'File not found after conversion' });
+      console.log(`[${new Date().toISOString()}] Conversion completed`);
+      if (stdout) {
+        console.log(`[${new Date().toISOString()}] stdout: ${stdout.substring(0, 200)}`);
       }
 
-      const filePath = path.join(tempDir, generatedFile);
+      // Tunggu sebentar untuk memastikan file sudah ditulis
+      setTimeout(() => {
+        try {
+          // Cari file yang sudah di-generate
+          const files = fs.readdirSync(tempDir);
+          const generatedFile = files.find(file => file.startsWith(`audio_${timestamp}`));
 
-      // Set headers untuk download
-      res.setHeader('Content-Type', 'audio/mpeg');
-      res.setHeader('Content-Disposition', `attachment; filename="${generatedFile}"`);
-
-      // Kirim file
-      const fileStream = fs.createReadStream(filePath);
-      fileStream.pipe(res);
-
-      // Hapus file setelah dikirim
-      fileStream.on('end', () => {
-        setTimeout(() => {
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+          if (!generatedFile) {
+            if (!responseSent) {
+              responseSent = true;
+              console.error(`[${new Date().toISOString()}] File not found after conversion`);
+              return res.status(500).json({ 
+                error: 'File not found after conversion',
+                details: 'Conversion completed but output file was not found. Check temp directory permissions.'
+              });
+            }
+            return;
           }
-        }, 5000); // Hapus setelah 5 detik
-      });
+
+          const filePath = path.join(tempDir, generatedFile);
+          
+          // Cek apakah file ada dan tidak kosong
+          const stats = fs.statSync(filePath);
+          if (stats.size === 0) {
+            if (!responseSent) {
+              responseSent = true;
+              return res.status(500).json({ 
+                error: 'Empty file generated',
+                details: 'Conversion completed but output file is empty.'
+              });
+            }
+            return;
+          }
+
+          console.log(`[${new Date().toISOString()}] File found: ${generatedFile} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+
+          if (responseSent) {
+            return; // Response sudah dikirim
+          }
+          responseSent = true;
+
+          // Set headers untuk download
+          res.setHeader('Content-Type', 'audio/mpeg');
+          res.setHeader('Content-Disposition', `attachment; filename="${generatedFile}"`);
+          res.setHeader('Content-Length', stats.size);
+
+          // Kirim file
+          const fileStream = fs.createReadStream(filePath);
+          
+          fileStream.on('error', (streamError) => {
+            console.error(`[${new Date().toISOString()}] Stream error: ${streamError.message}`);
+            if (!res.headersSent) {
+              res.status(500).json({ error: 'Error reading file', details: streamError.message });
+            }
+          });
+
+          fileStream.pipe(res);
+
+          // Hapus file setelah dikirim
+          res.on('finish', () => {
+            setTimeout(() => {
+              if (fs.existsSync(filePath)) {
+                try {
+                  fs.unlinkSync(filePath);
+                  console.log(`[${new Date().toISOString()}] Temp file deleted: ${generatedFile}`);
+                } catch (deleteError) {
+                  console.error(`[${new Date().toISOString()}] Error deleting temp file: ${deleteError.message}`);
+                }
+              }
+            }, 5000); // Hapus setelah 5 detik
+          });
+        } catch (fileError) {
+          if (!responseSent) {
+            responseSent = true;
+            console.error(`[${new Date().toISOString()}] File error: ${fileError.message}`);
+            return res.status(500).json({ 
+              error: 'File processing error', 
+              details: fileError.message 
+            });
+          }
+        }
+      }, 1000); // Tunggu 1 detik untuk memastikan file sudah ditulis
     });
+
+    // Handle process events
+    childProcess.on('error', (processError) => {
+      clearTimeout(processTimeout);
+      if (!responseSent) {
+        responseSent = true;
+        console.error(`[${new Date().toISOString()}] Process error: ${processError.message}`);
+        return res.status(500).json({ 
+          error: 'Failed to start conversion process', 
+          details: processError.message 
+        });
+      }
+    });
+
+    // Log progress jika ada
+    if (childProcess.stdout) {
+      childProcess.stdout.on('data', (data) => {
+        const output = data.toString();
+        if (output.includes('[download]') || output.includes('[ExtractAudio]')) {
+          console.log(`[${new Date().toISOString()}] Progress: ${output.substring(0, 100).trim()}`);
+        }
+      });
+    }
+
+    if (childProcess.stderr) {
+      childProcess.stderr.on('data', (data) => {
+        const output = data.toString();
+        // Log warning/info, bukan error (error sudah di-handle di callback)
+        if (!output.toLowerCase().includes('error')) {
+          console.log(`[${new Date().toISOString()}] Info: ${output.substring(0, 100).trim()}`);
+        }
+      });
+    }
+
   } catch (error) {
-    console.error(`Error: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    console.error(`[${new Date().toISOString()}] Error: ${error.message}`);
+    if (!res.headersSent) {
+      res.status(500).json({ error: error.message });
+    }
   }
 });
 

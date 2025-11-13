@@ -114,13 +114,9 @@ class HomeScreen extends StatelessWidget {
             const UrlInputWidget(),
             const SizedBox(height: 24),
             
-            // Video Info Card
+            // Error Message (ditampilkan jika ada error)
             Consumer<ConverterProvider>(
               builder: (context, provider, child) {
-                if (provider.isLoading && provider.videoInfo == null) {
-                  return const CircularProgressIndicator();
-                }
-                
                 if (provider.error != null && provider.videoInfo == null) {
                   return Card(
                     color: Colors.red.shade50,
@@ -140,9 +136,54 @@ class HomeScreen extends StatelessWidget {
                     ),
                   );
                 }
-                
+                return const SizedBox.shrink();
+              },
+            ),
+            
+            // Loading indicator saat fetch video info
+            Consumer<ConverterProvider>(
+              builder: (context, provider, child) {
+                if (provider.isLoading && provider.videoInfo == null) {
+                  return const Padding(
+                    padding: EdgeInsets.all(24.0),
+                    child: CircularProgressIndicator(),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+            
+            // Video Info Card
+            Consumer<ConverterProvider>(
+              builder: (context, provider, child) {
                 if (provider.videoInfo != null) {
-                  return VideoInfoCard(videoInfo: provider.videoInfo!);
+                  return Column(
+                    children: [
+                      // Error message saat download (jika ada)
+                      if (provider.error != null && provider.videoInfo != null)
+                        Card(
+                          color: Colors.red.shade50,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline, color: Colors.red),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    provider.error!,
+                                    style: const TextStyle(color: Colors.red),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      VideoInfoCard(videoInfo: provider.videoInfo!),
+                    ],
+                  );
                 }
                 
                 return const SizedBox.shrink();

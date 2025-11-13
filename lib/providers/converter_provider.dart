@@ -84,9 +84,49 @@ class ConverterProvider with ChangeNotifier {
         if (exists) {
           _error = 'Lagu ini sudah pernah didownload';
           _isLoading = false;
+          _downloadProgress = 0.0;
           notifyListeners();
           return;
         }
+      }
+
+      // Request permission dulu sebelum download (untuk Android)
+      try {
+        final hasPermission = await _storageService.requestStoragePermission();
+        if (!hasPermission) {
+          // Cek apakah permission permanently denied
+          final isPermanentlyDenied = await _storageService
+              .isPermissionPermanentlyDenied();
+
+          String errorMsg = 'Permission storage tidak diberikan.\n\n';
+
+          if (isPermanentlyDenied) {
+            errorMsg +=
+                'Permission sudah ditolak secara permanen.\n'
+                'Silakan buka Settings → Apps → Mufy → Permissions\n'
+                'dan berikan permission Storage/Audio secara manual.\n\n'
+                'Atau uninstall dan install ulang aplikasi untuk reset permission.';
+          } else {
+            errorMsg +=
+                'Silakan berikan permission storage di pengaturan aplikasi untuk menyimpan file musik.\n\n'
+                'Jika dialog permission tidak muncul, buka Settings → Apps → Mufy → Permissions secara manual.';
+          }
+
+          _error = errorMsg;
+          _isLoading = false;
+          _downloadProgress = 0.0;
+          notifyListeners();
+          return;
+        }
+      } catch (permissionError) {
+        developer.log('Permission error: $permissionError');
+        _error =
+            'Error meminta permission storage: $permissionError\n\n'
+            'Silakan coba uninstall dan install ulang aplikasi untuk reset permission.';
+        _isLoading = false;
+        _downloadProgress = 0.0;
+        notifyListeners();
+        return;
       }
 
       _downloadProgress = 0.1;
@@ -127,26 +167,28 @@ class ConverterProvider with ChangeNotifier {
 
       _downloadProgress = 1.0;
       _error = null;
+      _isLoading = false;
       developer.log('Download dan konversi selesai dengan sukses');
+      notifyListeners();
     } catch (e, stackTrace) {
       developer.log('Error di convertToMp3: $e');
       developer.log('Stack trace: $stackTrace');
-      
+
       // Bersihkan error message dari prefix "Exception: "
       String errorMessage = e.toString().replaceAll('Exception: ', '');
-      
+
       // Jika error message terlalu panjang, potong dan tambahkan instruksi
       if (errorMessage.length > 500) {
-        errorMessage = '${errorMessage.substring(0, 500)}...\n\n'
+        errorMessage =
+            '${errorMessage.substring(0, 500)}...\n\n'
             'Lihat log untuk detail lengkap.';
       }
-      
+
       _error = errorMessage;
       _downloadProgress = 0.0;
+      _isLoading = false;
+      notifyListeners();
     }
-
-    _isLoading = false;
-    notifyListeners();
   }
 
   Future<void> deleteSong(String id) async {
@@ -176,4 +218,3 @@ class ConverterProvider with ChangeNotifier {
     super.dispose();
   }
 }
-

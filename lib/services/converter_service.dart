@@ -27,7 +27,7 @@ class ConverterService {
       // Konfigurasi URL backend
       // Untuk development: http://localhost:3000/api/download
       // Untuk production: Ganti dengan URL server production Anda
-      final backendUrl = 'http://localhost:3000/api/download';
+      final backendUrl = 'http://192.168.50.218:3000/api/download';
 
       // Jika backend tidak tersedia, gunakan alternatif
       // Anda bisa menggunakan service seperti:
@@ -46,7 +46,9 @@ class ConverterService {
           options: Options(
             responseType: ResponseType.bytes,
             followRedirects: true,
-            receiveTimeout: const Duration(minutes: 10), // Timeout 10 menit untuk download besar
+            receiveTimeout: const Duration(
+              minutes: 10,
+            ), // Timeout 10 menit untuk download besar
             sendTimeout: const Duration(seconds: 30),
           ),
           onReceiveProgress: (received, total) {
@@ -66,15 +68,19 @@ class ConverterService {
 
         if (response.data == null || response.data.isEmpty) {
           developer.log('Error: Response data kosong');
-          throw Exception('File yang diterima kosong. Pastikan backend server berfungsi dengan baik.');
+          throw Exception(
+            'File yang diterima kosong. Pastikan backend server berfungsi dengan baik.',
+          );
         }
 
-        developer.log('Download selesai, ukuran file: ${_formatBytes(response.data.length)}');
+        developer.log(
+          'Download selesai, ukuran file: ${_formatBytes(response.data.length)}',
+        );
 
         // Simpan file ke local storage
         final fileName = '${_sanitizeFileName(title)}_$videoId.mp3';
         developer.log('Menyimpan file: $fileName');
-        
+
         final filePath = await _storageService.saveMp3File(
           fileName,
           response.data,
@@ -85,22 +91,24 @@ class ConverterService {
       } on DioException catch (e) {
         // Handle error spesifik dari Dio
         String errorMessage = 'Gagal mengunduh file';
-        
+
         developer.log('DioException terjadi: ${e.type}');
         developer.log('Error message: ${e.message}');
         developer.log('Error response: ${e.response?.data}');
         developer.log('Error status code: ${e.response?.statusCode}');
 
-        if (e.type == DioExceptionType.connectionTimeout || 
+        if (e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout) {
-          errorMessage = '⏱️ Timeout: Koneksi ke server terlalu lama.\n\n'
+          errorMessage =
+              '⏱️ Timeout: Koneksi ke server terlalu lama.\n\n'
               'Kemungkinan penyebab:\n'
               '• Video terlalu panjang\n'
               '• Koneksi internet lambat\n'
               '• Backend server tidak merespons\n\n'
               'Pastikan backend server berjalan di: $backendUrl';
         } else if (e.type == DioExceptionType.connectionError) {
-          errorMessage = '🔌 Tidak dapat terhubung ke server.\n\n'
+          errorMessage =
+              '🔌 Tidak dapat terhubung ke server.\n\n'
               'Pastikan:\n'
               '• Backend server sudah berjalan\n'
               '• URL backend benar: $backendUrl\n'
@@ -110,36 +118,39 @@ class ConverterService {
           // Server mengembalikan error response
           final statusCode = e.response!.statusCode;
           final errorData = e.response!.data;
-          
+
           String errorDetail = '';
           if (errorData is Map) {
-            errorDetail = errorData['error']?.toString() ?? 
-                         errorData['details']?.toString() ?? 
-                         errorData.toString();
+            errorDetail =
+                errorData['error']?.toString() ??
+                errorData['details']?.toString() ??
+                errorData.toString();
           } else if (errorData is String) {
             errorDetail = errorData;
           } else {
             errorDetail = errorData.toString();
           }
-          
-          errorMessage = '❌ Server error ($statusCode)\n\n'
+
+          errorMessage =
+              '❌ Server error ($statusCode)\n\n'
               'Detail error:\n$errorDetail\n\n'
               'Pastikan:\n'
               '• Backend server berjalan dengan baik\n'
               '• yt-dlp terinstall dan berfungsi\n'
               '• Video URL valid dan dapat diakses';
         } else {
-          errorMessage = '❌ Error: ${e.message ?? e.toString()}\n\n'
+          errorMessage =
+              '❌ Error: ${e.message ?? e.toString()}\n\n'
               'Pastikan backend server berjalan di: $backendUrl';
         }
-        
+
         throw Exception(errorMessage);
       } catch (e, stackTrace) {
         developer.log('Error umum: $e');
         developer.log('Stack trace: $stackTrace');
-        
+
         // Cek apakah ini error dari Dio yang tidak tertangkap
-        if (e.toString().contains('SocketException') || 
+        if (e.toString().contains('SocketException') ||
             e.toString().contains('Failed host lookup')) {
           throw Exception(
             '🔌 Tidak dapat terhubung ke server.\n\n'
@@ -150,7 +161,7 @@ class ConverterService {
             'Error detail: $e',
           );
         }
-        
+
         throw Exception(
           '❌ Terjadi error saat mengunduh file.\n\n'
           'Error: $e\n\n'

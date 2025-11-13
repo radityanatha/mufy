@@ -11,9 +11,6 @@ class ConverterService {
   static const String _vercelApiUrl =
       'https://mufy-api-xyz.vercel.app/api/download';
 
-  // Download audio menggunakan Vercel Serverless Function
-  // Vercel API akan download dan convert menggunakan @distube/ytdl-core
-  // Hasil dikembalikan sebagai base64, lalu di-decode dan disimpan ke device
   Future<String> downloadAndConvertToMp3({
     required String videoId,
     required String title,
@@ -21,7 +18,6 @@ class ConverterService {
     AudioQuality quality = AudioQuality.medium,
     Function(double)? onProgress,
   }) async {
-    // Check jika URL Vercel belum dikonfigurasi
     if (_vercelApiUrl.contains('YOUR_VERCEL_API_URL_HERE')) {
       throw Exception(
         '❌ Vercel API URL belum dikonfigurasi!\n\n'
@@ -45,10 +41,9 @@ class ConverterService {
         developer.log('Quality: ${quality.label}');
 
         if (onProgress != null) {
-          onProgress(0.1); // 10% - Started
+          onProgress(0.1);
         }
 
-        // Map quality ke format yang dimengerti Vercel API
         String qualityParam;
         switch (quality) {
           case AudioQuality.low:
@@ -66,12 +61,11 @@ class ConverterService {
         }
 
         if (onProgress != null) {
-          onProgress(0.2); // 20% - Processing di server
+          onProgress(0.2);
         }
 
         developer.log('Memanggil Vercel API: $_vercelApiUrl');
 
-        // Panggil Vercel API
         final response = await _dio
             .post(
               _vercelApiUrl,
@@ -109,7 +103,7 @@ class ConverterService {
         );
 
         if (onProgress != null) {
-          onProgress(0.7); // 70% - Audio received
+          onProgress(0.7);
         }
 
         // Decode base64 audio
@@ -124,10 +118,9 @@ class ConverterService {
         );
 
         if (onProgress != null) {
-          onProgress(0.9); // 90% - Decode selesai
+          onProgress(0.9);
         }
 
-        // Simpan file ke local storage
         final extension = data['format'] ?? 'm4a';
         final localFileName = '${_sanitizeFileName(title)}_$videoId.$extension';
 
@@ -139,7 +132,7 @@ class ConverterService {
         );
 
         if (onProgress != null) {
-          onProgress(1.0); // 100% - Selesai
+          onProgress(1.0);
         }
 
         developer.log('File berhasil disimpan di: $filePath');
@@ -148,13 +141,11 @@ class ConverterService {
         developer.log('Error: $e');
         developer.log('Stack trace: $stackTrace');
 
-        // Handle specific error dari Vercel API
         if (e is DioException) {
           final statusCode = e.response?.statusCode;
           final errorData = e.response?.data;
 
           if (statusCode == 400 || statusCode == 404) {
-            // Video tidak tersedia atau URL invalid
             throw Exception(
               'Video tidak tersedia atau diblokir.\n\n'
               'Kemungkinan penyebab:\n'
@@ -167,7 +158,6 @@ class ConverterService {
           }
 
           if (statusCode == 500) {
-            // Server error, coba retry
             retryCount++;
             if (retryCount < maxRetries) {
               developer.log(
@@ -179,7 +169,6 @@ class ConverterService {
           }
         }
 
-        // Retry logic untuk connection errors
         if ((e.toString().contains('Timeout') ||
                 e.toString().contains('Connection') ||
                 e.toString().contains('SocketException') ||
@@ -193,7 +182,6 @@ class ConverterService {
           continue;
         }
 
-        // Jika semua retry gagal atau error tidak bisa di-retry
         if (retryCount >= maxRetries) {
           throw Exception(
             '❌ Gagal mengunduh setelah $maxRetries percobaan.\n\n'
@@ -217,15 +205,10 @@ class ConverterService {
       }
     }
 
-    // Jika semua retry gagal
     throw Exception(
       'Gagal mengunduh setelah $maxRetries percobaan.\n\n'
       'Silakan coba lagi nanti atau pastikan Vercel API sudah di-deploy.',
     );
-  }
-
-  void dispose() {
-    // No cleanup needed for Vercel API
   }
 
   String _sanitizeFileName(String fileName) {

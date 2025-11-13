@@ -1,8 +1,8 @@
 // Vercel Serverless Function untuk download YouTube audio
 // Menggunakan @distube/ytdl-core (library JavaScript)
 
-const ytdl = require('@distube/ytdl-core');
-const { Readable } = require('stream');
+import ytdl from '@distube/ytdl-core';
+import { Readable } from 'stream';
 
 // Helper untuk convert stream ke buffer
 function streamToBuffer(stream) {
@@ -15,7 +15,6 @@ function streamToBuffer(stream) {
 }
 
 export default async function handler(req, res) {
-  // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

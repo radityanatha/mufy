@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/converter_provider.dart';
 import 'providers/playlist_provider.dart';
+import 'providers/music_player_provider.dart';
 import 'screens/home_screen.dart';
 
 void main() {
@@ -17,6 +18,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => ConverterProvider()),
         ChangeNotifierProvider(create: (_) => PlaylistProvider()),
+        ChangeNotifierProvider(create: (_) => MusicPlayerProvider()),
       ],
       child: MaterialApp(
         title: 'YouTube to MP3 Converter',

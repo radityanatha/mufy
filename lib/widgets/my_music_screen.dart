@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/converter_provider.dart';
 import '../providers/playlist_provider.dart';
+import '../providers/music_player_provider.dart';
 import '../models/playlist.dart';
 import '../models/downloaded_song.dart';
+import '../screens/music_player_screen.dart';
 
 class MyMusicScreen extends StatelessWidget {
   const MyMusicScreen({super.key});
@@ -382,7 +384,26 @@ class MyMusicScreen extends StatelessWidget {
           },
         ),
         onTap: () {
-          // TODO: Play song
+          // Navigate to music player
+          final player = context.read<MusicPlayerProvider>();
+          final converterProvider = context.read<ConverterProvider>();
+          final allSongs = converterProvider.downloadedSongs;
+
+          if (allSongs.isNotEmpty) {
+            player.playSong(
+              song,
+              playlist: allSongs,
+              index: allSongs.indexWhere((s) => s.id == song.id),
+            );
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    MusicPlayerScreen(song: song, playlist: allSongs),
+              ),
+            );
+          }
         },
       ),
     );
@@ -731,7 +752,26 @@ class PlaylistDetailScreen extends StatelessWidget {
                   },
                 ),
                 onTap: () {
-                  // TODO: Play song
+                  // Navigate to music player
+                  final player = context.read<MusicPlayerProvider>();
+
+                  player.playSong(
+                    song,
+                    playlist: songs,
+                    index: songs.indexWhere((s) => s.id == song.id),
+                    playlistName: playlist.name,
+                  );
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => MusicPlayerScreen(
+                        song: song,
+                        playlist: songs,
+                        playlistName: playlist.name,
+                      ),
+                    ),
+                  );
                 },
               );
             },

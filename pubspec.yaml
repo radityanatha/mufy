@@ -56,6 +56,9 @@ dependencies:
   
   # Media scanner untuk Android (scan file ke MediaStore)
   media_scanner: ^2.2.0
+  
+  # Audio player untuk memutar musik
+  audioplayers: ^6.0.0
 
 dev_dependencies:
   flutter_test:
